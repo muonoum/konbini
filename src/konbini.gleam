@@ -1,5 +1,7 @@
 import gleam/io
 import gleam/list
+import gleam/pair
+import gleam/result
 import gleam/string
 
 // http://www.cs.nott.ac.uk/~pszgmh/pearl.pdf
@@ -25,7 +27,7 @@ pub opaque type Consumed(v) {
 
 pub opaque type Reply(v) {
   Success(v, State, Position)
-  Failure(Position)
+  Failure(List(String), Position)
 }
 
 fn run(state: State, parser: Parser(v)) -> Consumed(v) {
@@ -33,19 +35,31 @@ fn run(state: State, parser: Parser(v)) -> Consumed(v) {
   parse(state)
 }
 
-pub fn parse(string: String, parser: Parser(v)) -> Result(v, Position) {
-  let state = State(string.to_graphemes(string), 0)
-  let consumed = run(state, parser)
+pub fn parse(
+  string: String,
+  parser: Parser(v),
+) -> Result(v, #(List(String), Position)) {
+  State(string.to_graphemes(string), 0)
+  |> run(parser)
+  |> to_result
+  |> result.map(pair.first)
+}
 
+fn to_result(
+  consumed: Consumed(v),
+) -> Result(#(v, State), #(List(String), Position)) {
   case consumed {
-    Empty(Success(_v, _state, position)) -> Error(position)
-    Empty(Failure(position)) -> Error(position)
+    Empty(reply) -> reply_to_result(reply)
+    Consumed(reply) -> reply_to_result(reply())
+  }
+}
 
-    Consumed(reply) ->
-      case reply() {
-        Success(v, _state, _position) -> Ok(v)
-        Failure(position) -> Error(position)
-      }
+fn reply_to_result(
+  reply: Reply(v),
+) -> Result(#(v, State), #(List(String), Position)) {
+  case reply {
+    Success(value, state, _position) -> Ok(#(value, state))
+    Failure(messages, position) -> Error(#(messages, position))
   }
 }
 
@@ -56,20 +70,32 @@ pub fn return(v: v) -> Parser(v) {
 
 pub fn fail() {
   use State(_input, position) <- Parser
-  Empty(Failure(position))
+  Empty(Failure([], position))
+}
+
+pub fn label(parser: Parser(v), expected: String) -> Parser(v) {
+  use state <- Parser
+
+  case run(state, parser) {
+    Empty(Failure(messages, position)) ->
+      Empty(Failure(["expected " <> expected, ..messages], position))
+    // Empty(Success(..)) -> todo
+    otherwise -> otherwise
+  }
 }
 
 pub fn satisfy(pred: fn(String) -> Bool) -> Parser(String) {
   use State(input, position) <- Parser
+  let next_position = position + 1
 
   case input {
-    [] -> Empty(Failure(position))
+    [] -> Empty(Failure(["unexpected end of input"], position))
 
     [v, ..vs] ->
       case pred(v) {
         True ->
-          Consumed(fn() { Success(v, State(vs, position + 1), position + 1) })
-        False -> Empty(Failure(position + 1))
+          Consumed(fn() { Success(v, State(vs, next_position), next_position) })
+        False -> Empty(Failure(["got " <> v], next_position))
       }
   }
 }
@@ -78,7 +104,7 @@ pub fn do(parser: Parser(a), then: fn(a) -> Parser(b)) -> Parser(b) {
   use State(_input, _position) as state <- Parser
 
   case run(state, parser) {
-    Empty(Failure(position)) -> Empty(Failure(position))
+    Empty(Failure(messages, position)) -> Empty(Failure(messages, position))
     Empty(Success(v, state, _position)) -> run(state, then(v))
 
     Consumed(reply) ->
@@ -86,7 +112,7 @@ pub fn do(parser: Parser(a), then: fn(a) -> Parser(b)) -> Parser(b) {
       // la Consumed inneholde en funksjon. Trenger å teste dette vs. ikke lazy.
       Consumed(fn() {
         case reply() {
-          Failure(position) -> Failure(position)
+          Failure(messages, position) -> Failure(messages, position)
 
           Success(v, state, _position) ->
             case run(state, then(v)) {
@@ -102,7 +128,7 @@ pub fn choice(a: Parser(a), b: Parser(a)) -> Parser(a) {
   use State(_input, _position) as state <- Parser
 
   case run(state, a) {
-    Empty(Failure(_position)) -> run(state, b)
+    Empty(Failure(_messages, _error)) -> run(state, b)
     Consumed(reply) -> Consumed(reply)
 
     Empty(success) ->
@@ -121,7 +147,7 @@ pub fn try(parser: Parser(v)) -> Parser(v) {
 
     Consumed(reply) ->
       case reply() {
-        Failure(position) -> Empty(Failure(position))
+        Failure(messages, position) -> Empty(Failure(messages, position))
         _success -> Consumed(reply)
       }
   }
@@ -143,7 +169,7 @@ pub fn option(parser: Parser(v), default: v) -> Parser(v) {
 
 pub fn one_of(parsers: List(Parser(v))) -> Parser(v) {
   use State(_input, position) as state <- Parser
-  use _, parser <- list.fold_until(parsers, Empty(Failure(position)))
+  use _, parser <- list.fold_until(parsers, Empty(Failure([], position)))
 
   case run(state, parser) {
     Empty(reply) -> list.Continue(Empty(reply))
@@ -151,7 +177,7 @@ pub fn one_of(parsers: List(Parser(v))) -> Parser(v) {
     Consumed(reply) ->
       case reply() {
         Success(..) -> list.Stop(Consumed(reply))
-        Failure(_position) -> list.Continue(Consumed(reply))
+        Failure(_messages, _error) -> list.Continue(Consumed(reply))
       }
   }
 }
@@ -226,30 +252,16 @@ pub fn ascii_alphanumeric() -> Parser(String) {
 }
 
 pub fn main() {
-  string.to_graphemes("alex")
+  string.to_graphemes("azex")
   |> State(0)
   |> run({
-    use a <- do(grapheme("a"))
-    use b <- do(grapheme("l"))
-    use c <- do(grapheme("e"))
-    use d <- do(grapheme("x"))
+    use a <- do(label(grapheme("a"), "a"))
+    use b <- do(label(one_of([grapheme("l"), grapheme("k")]), "l or k"))
+    use c <- do(label(grapheme("e"), "e"))
+    use d <- do(label(grapheme("x"), "x"))
     use <- drop(end())
     return(a <> b <> c <> d)
   })
   |> to_result
   |> io.debug
-}
-
-fn to_result(consumed: Consumed(v)) -> Result(#(v, State), Position) {
-  case consumed {
-    Empty(reply) -> reply_to_result(reply)
-    Consumed(reply) -> reply_to_result(reply())
-  }
-}
-
-fn reply_to_result(reply: Reply(v)) -> Result(#(v, State), Position) {
-  case reply {
-    Success(value, state, _position) -> Ok(#(value, state))
-    Failure(position) -> Error(position)
-  }
 }

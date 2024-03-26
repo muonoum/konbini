@@ -3,7 +3,7 @@ import gleeunit
 import gleeunit/should
 import konbini.{
   any, ascii_alphanumeric, ascii_lowercase, choice, do, drop, end, grapheme,
-  many, not_followed_by, one_of, parse, return, some, string,
+  label, many, not_followed_by, one_of, parse, return, some, string,
 }
 
 type Part {
@@ -14,6 +14,12 @@ type Part {
 
 pub fn main() {
   gleeunit.main()
+}
+
+pub fn error_test() {
+  let parser = label(grapheme("a"), "a")
+  parse("zlex", parser)
+  |> should.equal(Error(#(["expected a", "got z"], 1)))
 }
 
 pub fn interpolate1_test() {
