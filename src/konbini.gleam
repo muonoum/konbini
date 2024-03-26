@@ -121,10 +121,6 @@ pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
   then()
 }
 
-pub fn option(parser: Parser(v), default: v) -> Parser(v) {
-  choice(parser, return(default))
-}
-
 // Denne brekker en av testene -- på grunn av ikke-lazy?
 // pub fn one_of(parsers: List(Parser(v))) -> Parser(v) {
 //   list.fold_right(parsers, fail(), choice)
@@ -152,11 +148,6 @@ pub fn not_followed_by(parser: Parser(v)) -> Parser(Nil) {
   }
 
   try(choice(attempt, return(Nil)))
-}
-
-pub fn map(parser: Parser(a), with: fn(a) -> b) -> Parser(b) {
-  use vs <- do(parser)
-  return(with(vs))
 }
 
 pub fn any() -> Parser(String) {
@@ -193,23 +184,4 @@ pub fn some(parser: Parser(v)) -> Parser(List(v)) {
   use first <- do(parser)
   use rest <- do(choice(some(parser), return([])))
   return([first, ..rest])
-}
-
-pub fn ascii_lowercase() -> Parser(String) {
-  use grapheme <- satisfy
-  string.contains("abcdefgijklmnopqrstuvwxyz", grapheme)
-}
-
-pub fn ascii_uppercase() -> Parser(String) {
-  use grapheme <- satisfy
-  string.contains("ABCDEFGIJKLMNOPQRSTUVWXYZ", grapheme)
-}
-
-pub fn digit() -> Parser(String) {
-  use grapheme <- satisfy
-  string.contains("01234567890", grapheme)
-}
-
-pub fn ascii_alphanumeric() -> Parser(String) {
-  one_of([ascii_lowercase(), ascii_uppercase(), digit()])
 }
