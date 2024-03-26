@@ -7,7 +7,7 @@ import gleam/string
 // https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/parsec-paper-letter.pdf
 
 pub opaque type Parser(v) {
-  Parser(fn(List(String)) -> Consumed(v))
+  Parser(fn(State) -> Consumed(v))
 }
 
 pub opaque type State {
@@ -24,31 +24,18 @@ pub opaque type Consumed(v) {
 }
 
 pub opaque type Reply(v) {
-  Success(v, List(String))
+  Success(v, State)
   Failure
 }
 
-fn run(input: List(String), parser: Parser(v)) -> Consumed(v) {
+fn run(state: State, parser: Parser(v)) -> Consumed(v) {
   let Parser(parse) = parser
-  parse(input)
-}
-
-fn to_result(consumed: Consumed(v)) -> Result(#(v, List(String)), Nil) {
-  case consumed {
-    Empty(reply) -> reply_to_result(reply)
-    Consumed(reply) -> reply_to_result(reply())
-  }
-}
-
-fn reply_to_result(reply: Reply(v)) -> Result(#(v, List(String)), Nil) {
-  case reply {
-    Success(v, vs) -> Ok(#(v, vs))
-    Failure -> Error(Nil)
-  }
+  parse(state)
 }
 
 pub fn parse(string: String, parser: Parser(v)) -> Result(v, Nil) {
-  let consumed = run(string.to_graphemes(string), parser)
+  let state = State(string.to_graphemes(string), 0)
+  let consumed = run(state, parser)
 
   case consumed {
     Empty(_) -> Error(Nil)
@@ -62,33 +49,33 @@ pub fn parse(string: String, parser: Parser(v)) -> Result(v, Nil) {
 }
 
 pub fn return(v: v) -> Parser(v) {
-  use input <- Parser
-  Empty(Success(v, input))
+  use state <- Parser
+  Empty(Success(v, state))
 }
 
 pub fn fail() {
-  use _input <- Parser
+  use _state <- Parser
   Empty(Failure)
 }
 
 pub fn satisfy(pred: fn(String) -> Bool) -> Parser(String) {
-  use input <- Parser
+  use State(input, position) <- Parser
 
   case input {
     [] -> Empty(Failure)
 
     [v, ..vs] ->
       case pred(v) {
-        True -> Consumed(fn() { Success(v, vs) })
+        True -> Consumed(fn() { Success(v, State(vs, position + 1)) })
         False -> Empty(Failure)
       }
   }
 }
 
 pub fn do(parser: Parser(a), then: fn(a) -> Parser(b)) -> Parser(b) {
-  use input <- Parser
+  use state <- Parser
 
-  case run(input, parser) {
+  case run(state, parser) {
     Empty(Failure) -> Empty(Failure)
     Empty(Success(v, vs)) -> run(vs, then(v))
 
@@ -110,14 +97,14 @@ pub fn do(parser: Parser(a), then: fn(a) -> Parser(b)) -> Parser(b) {
 }
 
 pub fn choice(a: Parser(a), b: Parser(a)) -> Parser(a) {
-  use input <- Parser
+  use state <- Parser
 
-  case run(input, a) {
-    Empty(Failure) -> run(input, b)
+  case run(state, a) {
+    Empty(Failure) -> run(state, b)
     Consumed(reply) -> Consumed(reply)
 
     Empty(success) ->
-      case run(input, b) {
+      case run(state, b) {
         Empty(_) -> Empty(success)
         Consumed(reply) -> Consumed(reply)
       }
@@ -125,9 +112,9 @@ pub fn choice(a: Parser(a), b: Parser(a)) -> Parser(a) {
 }
 
 pub fn try(parser: Parser(v)) -> Parser(v) {
-  use input <- Parser
+  use state <- Parser
 
-  case run(input, parser) {
+  case run(state, parser) {
     Empty(reply) -> Empty(reply)
 
     Consumed(reply) ->
@@ -153,10 +140,10 @@ pub fn option(parser: Parser(v), default: v) -> Parser(v) {
 // }
 
 pub fn one_of(parsers: List(Parser(v))) -> Parser(v) {
-  use input <- Parser
+  use state <- Parser
   use _, parser <- list.fold_until(parsers, Empty(Failure))
 
-  case run(input, parser) {
+  case run(state, parser) {
     Empty(reply) -> list.Continue(Empty(reply))
 
     Consumed(reply) ->
@@ -238,10 +225,26 @@ pub fn ascii_alphanumeric() -> Parser(String) {
 
 pub fn main() {
   string.to_graphemes("alex")
+  |> State(0)
   |> run({
     use a <- do(grapheme("a"))
-    return(a)
+    use b <- do(grapheme("l"))
+    return(a <> b)
   })
   |> to_result
   |> io.debug
+}
+
+fn to_result(consumed: Consumed(v)) -> Result(#(v, State), Nil) {
+  case consumed {
+    Empty(reply) -> reply_to_result(reply)
+    Consumed(reply) -> reply_to_result(reply())
+  }
+}
+
+fn reply_to_result(reply: Reply(v)) -> Result(#(v, State), Nil) {
+  case reply {
+    Success(v, vs) -> Ok(#(v, vs))
+    Failure -> Error(Nil)
+  }
 }
