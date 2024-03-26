@@ -1,6 +1,8 @@
 import gleam/list
 import gleam/string
 
+// http://www.cs.nott.ac.uk/~pszgmh/pearl.pdf
+// https://www.cs.nott.ac.uk/~pszgmh/monparsing.pdf
 // https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/parsec-paper-letter.pdf
 
 pub opaque type Parser(v) {
