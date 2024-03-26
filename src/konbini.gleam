@@ -1,3 +1,4 @@
+import gleam/io
 import gleam/list
 import gleam/string
 
@@ -9,6 +10,13 @@ pub opaque type Parser(v) {
   Parser(fn(List(String)) -> Consumed(v))
 }
 
+pub opaque type State {
+  State(List(String), Position)
+}
+
+pub type Position =
+  Int
+
 pub opaque type Consumed(v) {
   // fn() -- se do-funksjonen lenger ned
   Consumed(fn() -> Reply(v))
@@ -18,6 +26,25 @@ pub opaque type Consumed(v) {
 pub opaque type Reply(v) {
   Success(v, List(String))
   Failure
+}
+
+fn run(input: List(String), parser: Parser(v)) -> Consumed(v) {
+  let Parser(parse) = parser
+  parse(input)
+}
+
+fn to_result(consumed: Consumed(v)) -> Result(#(v, List(String)), Nil) {
+  case consumed {
+    Empty(reply) -> reply_to_result(reply)
+    Consumed(reply) -> reply_to_result(reply())
+  }
+}
+
+fn reply_to_result(reply: Reply(v)) -> Result(#(v, List(String)), Nil) {
+  case reply {
+    Success(v, vs) -> Ok(#(v, vs))
+    Failure -> Error(Nil)
+  }
 }
 
 pub fn parse(string: String, parser: Parser(v)) -> Result(v, Nil) {
@@ -32,11 +59,6 @@ pub fn parse(string: String, parser: Parser(v)) -> Result(v, Nil) {
         Failure -> Error(Nil)
       }
   }
-}
-
-fn run(input: List(String), parser: Parser(v)) -> Consumed(v) {
-  let Parser(parse) = parser
-  parse(input)
 }
 
 pub fn return(v: v) -> Parser(v) {
@@ -212,4 +234,14 @@ pub fn digit() -> Parser(String) {
 
 pub fn ascii_alphanumeric() -> Parser(String) {
   one_of([ascii_lowercase(), ascii_uppercase(), digit()])
+}
+
+pub fn main() {
+  string.to_graphemes("alex")
+  |> run({
+    use a <- do(grapheme("a"))
+    return(a)
+  })
+  |> to_result
+  |> io.debug
 }
