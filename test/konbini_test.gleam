@@ -59,10 +59,8 @@ pub fn interpolate1_test() {
   }
 
   let text = {
-    let part = many(one_of([static, reference, placeholder]))
-    use parts <- do(part)
+    use parts <- do(many(one_of([static, reference, placeholder])))
     use <- drop(end())
-
     return(parts)
   }
 
@@ -121,10 +119,8 @@ pub fn interpolate2_test() {
   }
 
   let text = {
-    let part = many(one_of([static, reference]))
-    use parts <- do(part)
+    use parts <- do(many(one_of([static, reference])))
     use <- drop(end())
-
     return(parts)
   }
 

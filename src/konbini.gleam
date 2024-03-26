@@ -39,8 +39,6 @@ fn run(input: List(String), parser: Parser(v)) -> Consumed(v) {
   parse(input)
 }
 
-// primitives
-
 pub fn return(v: v) -> Parser(v) {
   use input <- Parser
   Empty(Success(v, input))
@@ -73,8 +71,8 @@ pub fn do(parser: Parser(a), then: fn(a) -> Parser(b)) -> Parser(b) {
     Empty(Success(v, vs)) -> run(vs, then(v))
 
     Consumed(reply) ->
-      // Paper mener lazyness er essensielt her så vi prøver å simulere det
-      // ved å la Consumed inneholde en funksjon. Trenger å teste dette vs. ikke lazy.
+      // Paper mener lazyness er essensielt her så vi prøver å simulere det ved å
+      // la Consumed inneholde en funksjon. Trenger å teste dette vs. ikke lazy.
       Consumed(fn() {
         case reply() {
           Failure -> Failure
@@ -117,8 +115,6 @@ pub fn try(parser: Parser(v)) -> Parser(v) {
       }
   }
 }
-
-// combinators
 
 pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
   use _ <- do(parser)
