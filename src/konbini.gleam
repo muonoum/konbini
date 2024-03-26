@@ -8,6 +8,7 @@ pub opaque type Parser(v) {
 }
 
 pub opaque type Consumed(v) {
+  // fn() -- se do-funksjonen lenger ned
   Consumed(fn() -> Reply(v))
   Empty(Reply(v))
 }
@@ -70,6 +71,8 @@ pub fn do(parser: Parser(a), then: fn(a) -> Parser(b)) -> Parser(b) {
     Empty(Success(v, vs)) -> run(vs, then(v))
 
     Consumed(reply) ->
+      // Paper mener lazyness er essensielt her så vi prøver å simulere det
+      // ved å la Consumed inneholde en funksjon. Trenger å teste dette vs. ikke lazy.
       Consumed(fn() {
         case reply() {
           Failure -> Failure
@@ -123,6 +126,11 @@ pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
 pub fn option(parser: Parser(v), default: v) -> Parser(v) {
   choice(parser, return(default))
 }
+
+// Denne brekker en av testene -- på grunn av ikke-lazy?
+// pub fn one_of(parsers: List(Parser(v))) -> Parser(v) {
+//   list.fold_right(parsers, fail(), choice)
+// }
 
 pub fn one_of(parsers: List(Parser(v))) -> Parser(v) {
   use input <- Parser
