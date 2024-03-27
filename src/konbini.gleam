@@ -1,84 +1,84 @@
+import gleam/bool
 import gleam/list
 import gleam/string
 
-// http://www.cs.nott.ac.uk/~pszgmh/pearl.pdf
-// https://www.cs.nott.ac.uk/~pszgmh/monparsing.pdf
 // https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/parsec-paper-letter.pdf
 
 pub opaque type Parser(v) {
-  Parser(fn(List(String)) -> Consumed(v))
+  Parser(fn(State) -> Consumed(v))
 }
 
 pub opaque type Consumed(v) {
-  // fn() -- se do-funksjonen lenger ned
   Consumed(fn() -> Reply(v))
   Empty(Reply(v))
 }
 
 pub opaque type Reply(v) {
-  Success(v, List(String))
+  Success(v, State)
   Failure
 }
 
-pub fn parse(string: String, parser: Parser(v)) -> Result(v, Nil) {
-  let consumed = run(string.to_graphemes(string), parser)
+pub opaque type State {
+  State(List(String))
+}
 
-  case consumed {
-    Empty(_) -> Error(Nil)
+fn run(parser: Parser(v), state: State) -> Consumed(v) {
+  let Parser(parse) = parser
+  parse(state)
+}
+
+pub fn parse(string: String, parser: Parser(v)) -> Result(v, Nil) {
+  let state = State(string.to_graphemes(string))
+
+  case run(parser, state) {
+    Empty(_reply) -> Error(Nil)
 
     Consumed(reply) ->
       case reply() {
-        Success(v, _) -> Ok(v)
+        Success(value, _state) -> Ok(value)
         Failure -> Error(Nil)
       }
   }
 }
 
-fn run(input: List(String), parser: Parser(v)) -> Consumed(v) {
-  let Parser(parse) = parser
-  parse(input)
+pub fn succeed(value: v) -> Parser(v) {
+  use state <- Parser
+  Empty(Success(value, state))
 }
 
-pub fn return(v: v) -> Parser(v) {
-  use input <- Parser
-  Empty(Success(v, input))
-}
-
-pub fn fail() {
-  use _input <- Parser
+pub fn fail() -> Parser(v) {
+  use _state <- Parser
   Empty(Failure)
 }
 
 pub fn satisfy(pred: fn(String) -> Bool) -> Parser(String) {
-  use input <- Parser
+  use State(input) <- Parser
 
   case input {
     [] -> Empty(Failure)
 
-    [v, ..vs] ->
-      case pred(v) {
-        True -> Consumed(fn() { Success(v, vs) })
-        False -> Empty(Failure)
-      }
+    [first, ..rest] -> {
+      use <- bool.guard(!pred(first), Empty(Failure))
+      use <- Consumed
+      Success(first, State(rest))
+    }
   }
 }
 
-pub fn do(parser: Parser(a), then: fn(a) -> Parser(b)) -> Parser(b) {
-  use input <- Parser
+pub fn keep(parser: Parser(a), next: fn(a) -> Parser(b)) -> Parser(b) {
+  use state <- Parser
 
-  case run(input, parser) {
+  case run(parser, state) {
     Empty(Failure) -> Empty(Failure)
-    Empty(Success(v, vs)) -> run(vs, then(v))
+    Empty(Success(value, state)) -> run(next(value), state)
 
     Consumed(reply) ->
-      // Paper mener lazyness er essensielt her så vi prøver å simulere det ved å
-      // la Consumed inneholde en funksjon. Trenger å teste dette vs. ikke lazy.
       Consumed(fn() {
         case reply() {
           Failure -> Failure
 
-          Success(v, vs) ->
-            case run(vs, then(v)) {
+          Success(value, state) ->
+            case run(next(value), state) {
               Consumed(reply) -> reply()
               Empty(reply) -> reply
             }
@@ -87,25 +87,34 @@ pub fn do(parser: Parser(a), then: fn(a) -> Parser(b)) -> Parser(b) {
   }
 }
 
-pub fn choice(a: Parser(a), b: Parser(a)) -> Parser(a) {
-  use input <- Parser
+pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
+  keep(parser, fn(_value) { then() })
+}
 
-  case run(input, a) {
-    Empty(Failure) -> run(input, b)
+pub fn choice(a: Parser(v), b: Parser(v)) -> Parser(v) {
+  use state <- Parser
+
+  case run(a, state) {
     Consumed(reply) -> Consumed(reply)
+    Empty(Failure) -> run(b, state)
 
     Empty(success) ->
-      case run(input, b) {
-        Empty(_) -> Empty(success)
+      case run(b, state) {
+        Empty(_reply) -> Empty(success)
         Consumed(reply) -> Consumed(reply)
       }
   }
 }
 
-pub fn try(parser: Parser(v)) -> Parser(v) {
-  use input <- Parser
+pub fn one_of(parsers: List(Parser(v))) -> Parser(v) {
+  use result, parser <- list.fold_right(parsers, fail())
+  choice(parser, result)
+}
 
-  case run(input, parser) {
+pub fn try(parser: Parser(v)) -> Parser(v) {
+  use state <- Parser
+
+  case run(parser, state) {
     Empty(reply) -> Empty(reply)
 
     Consumed(reply) ->
@@ -116,56 +125,29 @@ pub fn try(parser: Parser(v)) -> Parser(v) {
   }
 }
 
-pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
-  use _ <- do(parser)
-  then()
-}
-
-pub fn option(parser: Parser(v), default: v) -> Parser(v) {
-  choice(parser, return(default))
-}
-
-// Denne brekker en av testene -- på grunn av ikke-lazy?
-// pub fn one_of(parsers: List(Parser(v))) -> Parser(v) {
-//   list.fold_right(parsers, fail(), choice)
-// }
-
-pub fn one_of(parsers: List(Parser(v))) -> Parser(v) {
-  use input <- Parser
-  use _, parser <- list.fold_until(parsers, Empty(Failure))
-
-  case run(input, parser) {
-    Empty(reply) -> list.Continue(Empty(reply))
-
-    Consumed(reply) ->
-      case reply() {
-        Success(..) -> list.Stop(Consumed(reply))
-        Failure -> list.Continue(Consumed(reply))
-      }
-  }
+pub fn any() -> Parser(String) {
+  satisfy(fn(_grapheme) { True })
 }
 
 pub fn not_followed_by(parser: Parser(v)) -> Parser(Nil) {
-  let attempt = {
-    use <- drop(try(parser))
-    fail()
-  }
-
-  try(choice(attempt, return(Nil)))
-}
-
-pub fn map(parser: Parser(a), with: fn(a) -> b) -> Parser(b) {
-  use vs <- do(parser)
-  return(with(vs))
-}
-
-pub fn any() -> Parser(String) {
-  use _grapheme <- satisfy
-  True
+  try(
+    drop(parser, fail)
+    |> choice(succeed(Nil)),
+  )
 }
 
 pub fn end() -> Parser(Nil) {
   not_followed_by(any())
+}
+
+pub fn many(parser: Parser(v)) -> Parser(List(v)) {
+  choice(some(parser), succeed([]))
+}
+
+pub fn some(parser: Parser(v)) -> Parser(List(v)) {
+  use first <- keep(parser)
+  use rest <- keep(many(parser))
+  succeed([first, ..rest])
 }
 
 pub fn grapheme(want: String) -> Parser(String) {
@@ -175,41 +157,12 @@ pub fn grapheme(want: String) -> Parser(String) {
 
 pub fn string(want: String) -> Parser(String) {
   case string.to_graphemes(want) {
-    [] -> return("")
+    [] -> succeed("")
 
     [first, ..rest] -> {
       use <- drop(grapheme(first))
       use <- drop(string(string.join(rest, "")))
-      return(want)
+      succeed(want)
     }
   }
-}
-
-pub fn many(parser: Parser(v)) -> Parser(List(v)) {
-  choice(some(parser), return([]))
-}
-
-pub fn some(parser: Parser(v)) -> Parser(List(v)) {
-  use first <- do(parser)
-  use rest <- do(choice(some(parser), return([])))
-  return([first, ..rest])
-}
-
-pub fn ascii_lowercase() -> Parser(String) {
-  use grapheme <- satisfy
-  string.contains("abcdefgijklmnopqrstuvwxyz", grapheme)
-}
-
-pub fn ascii_uppercase() -> Parser(String) {
-  use grapheme <- satisfy
-  string.contains("ABCDEFGIJKLMNOPQRSTUVWXYZ", grapheme)
-}
-
-pub fn digit() -> Parser(String) {
-  use grapheme <- satisfy
-  string.contains("01234567890", grapheme)
-}
-
-pub fn ascii_alphanumeric() -> Parser(String) {
-  one_of([ascii_lowercase(), ascii_uppercase(), digit()])
 }
