@@ -1,4 +1,3 @@
-import gleam/bool
 import gleam/list
 import gleam/string
 
@@ -19,7 +18,7 @@ pub opaque type Reply(v) {
 }
 
 pub opaque type State {
-  State(List(String))
+  State(String)
 }
 
 fn run(parser: Parser(v), state: State) -> Consumed(v) {
@@ -28,7 +27,7 @@ fn run(parser: Parser(v), state: State) -> Consumed(v) {
 }
 
 pub fn parse(string: String, parser: Parser(v)) -> Result(v, Nil) {
-  let state = State(string.to_graphemes(string))
+  let state = State(string)
 
   case run(parser, state) {
     Empty(_reply) -> Error(Nil)
@@ -42,25 +41,24 @@ pub fn parse(string: String, parser: Parser(v)) -> Result(v, Nil) {
 }
 
 pub fn succeed(value: v) -> Parser(v) {
-  use state <- Parser
-  Empty(Success(value, state))
+  Parser(fn(state) { Empty(Success(value, state)) })
 }
 
 pub fn fail() -> Parser(v) {
-  use _state <- Parser
-  Empty(Failure)
+  Parser(fn(_state) { Empty(Failure) })
 }
 
 pub fn satisfy(pred: fn(String) -> Bool) -> Parser(String) {
   use State(input) <- Parser
 
-  case input {
-    [] -> Empty(Failure)
+  case string.pop_grapheme(input) {
+    Error(Nil) -> Empty(Failure)
 
-    [first, ..rest] -> {
-      use <- bool.guard(!pred(first), Empty(Failure))
-      use <- Consumed
-      Success(first, State(rest))
+    Ok(#(first, rest)) -> {
+      case pred(first) {
+        False -> Empty(Failure)
+        True -> Consumed(fn() { Success(first, State(rest)) })
+      }
     }
   }
 }
@@ -130,10 +128,7 @@ pub fn any() -> Parser(String) {
 }
 
 pub fn not_followed_by(parser: Parser(v)) -> Parser(Nil) {
-  try(
-    drop(parser, fail)
-    |> choice(succeed(Nil)),
-  )
+  try(choice(drop(parser, fail), succeed(Nil)))
 }
 
 pub fn end() -> Parser(Nil) {
@@ -151,8 +146,7 @@ pub fn some(parser: Parser(v)) -> Parser(List(v)) {
 }
 
 pub fn grapheme(want: String) -> Parser(String) {
-  use grapheme <- satisfy
-  grapheme == want
+  satisfy(fn(grapheme) { grapheme == want })
 }
 
 pub fn string(want: String) -> Parser(String) {

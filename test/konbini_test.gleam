@@ -17,18 +17,15 @@ pub fn main() {
 }
 
 fn ascii_lowercase() {
-  use grapheme <- satisfy
-  string.contains("abcdefgijklmnopqrstuvwxyz", grapheme)
+  satisfy(string.contains("abcdefgijklmnopqrstuvwxyz", _))
 }
 
 fn ascii_uppercase() {
-  use grapheme <- satisfy
-  string.contains("ABCDEFGIJKLMNOPQRSTUVWXYZ", grapheme)
+  satisfy(string.contains("ABCDEFGIJKLMNOPQRSTUVWXYZ", _))
 }
 
 fn digit() {
-  use grapheme <- satisfy
-  string.contains("01234567890", grapheme)
+  satisfy(string.contains("01234567890", _))
 }
 
 fn ascii_alphanumeric() {
@@ -40,10 +37,13 @@ fn spaces() {
 }
 
 pub fn interpolate1_test() {
+  let open = string("{{")
+  let close = string("}}")
+
   let static = {
     use parts <- keep(
       some({
-        use <- drop(not_followed_by(string("{{")))
+        use <- drop(not_followed_by(open))
         use grapheme <- keep(any())
         succeed(grapheme)
       }),
@@ -57,23 +57,21 @@ pub fn interpolate1_test() {
     let symbol = choice(grapheme("-"), grapheme("_"))
     let subsequent = choice(symbol, ascii_alphanumeric())
 
-    use <- drop(string("{{"))
+    use <- drop(open)
     use <- drop(spaces())
     use first <- keep(initial)
     use rest <- keep(many(subsequent))
     use <- drop(spaces())
-    use <- drop(string("}}"))
-
+    use <- drop(close)
     succeed(Reference(string.join([first, ..rest], "")))
   }
 
   let placeholder = {
-    use <- drop(string("{{"))
+    use <- drop(open)
     use <- drop(spaces())
     use <- drop(grapheme("_"))
     use <- drop(spaces())
-    use <- drop(string("}}"))
-
+    use <- drop(close)
     succeed(Placeholder)
   }
 
@@ -97,10 +95,13 @@ pub fn interpolate1_test() {
 }
 
 pub fn interpolate2_test() {
+  let open = string("{{")
+  let close = string("}}")
+
   let static = {
     use parts <- keep(
       some({
-        use <- drop(not_followed_by(string("{{")))
+        use <- drop(not_followed_by(open))
         use grapheme <- keep(any())
         succeed(grapheme)
       }),
@@ -124,12 +125,11 @@ pub fn interpolate2_test() {
       succeed(Reference(string.join([first, ..rest], "")))
     }
 
-    use <- drop(string("{{"))
+    use <- drop(open)
     use <- drop(spaces())
     use part <- keep(choice(placeholder, id))
     use <- drop(spaces())
-    use <- drop(string("}}"))
-
+    use <- drop(close)
     succeed(part)
   }
 
