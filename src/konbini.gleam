@@ -7,17 +7,17 @@ pub opaque type Parser(v) {
   Parser(fn(State) -> Consumed(v))
 }
 
-pub opaque type Consumed(v) {
+type Consumed(v) {
   Consumed(fn() -> Reply(v))
   Empty(Reply(v))
 }
 
-pub opaque type Reply(v) {
+type Reply(v) {
   Success(v, State, Message)
   Failure(Message)
 }
 
-pub opaque type State {
+type State {
   State(String, Position)
 }
 
