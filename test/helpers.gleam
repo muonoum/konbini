@@ -1,6 +1,6 @@
 import gleam/string
 import konbini.{type Parser, choice, label, many, satisfy}
-import konbini/parsers.{grapheme}
+import konbini/strings.{grapheme}
 
 pub fn ascii_lowercase() -> Parser(String, String) {
   satisfy(string.contains("abcdefgijklmnopqrstuvwxyz", _))

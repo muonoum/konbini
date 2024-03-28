@@ -1,7 +1,6 @@
 import gleam/option.{Some}
 import helpers.{base10_digit} as _internal
-import konbini/parsers.{grapheme}
-import konbini/strings
+import konbini/strings.{grapheme}
 import showtime/tests/should
 
 import konbini.{

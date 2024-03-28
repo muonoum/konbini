@@ -1,7 +1,7 @@
 import helpers.{ascii_lowercase, base10_digit} as _internal
 import konbini.{choice, try}
-import konbini/parsers.{grapheme, surrounded_by}
-import konbini/strings
+import konbini/parsers.{surrounded_by}
+import konbini/strings.{grapheme}
 import showtime/tests/should
 
 pub fn ll_fail_test() {

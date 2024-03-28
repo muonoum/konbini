@@ -1,21 +1,4 @@
-import gleam/string
-import konbini.{type Parser, drop, keep, satisfy, succeed}
-
-pub fn grapheme(wanted: String) -> Parser(String, String) {
-  satisfy(fn(grapheme) { grapheme == wanted })
-}
-
-pub fn string(wanted: String) -> Parser(String, String) {
-  case string.to_graphemes(wanted) {
-    [] -> succeed("")
-
-    [first, ..rest] -> {
-      use <- drop(grapheme(first))
-      use <- drop(string(string.join(rest, "")))
-      succeed(wanted)
-    }
-  }
-}
+import konbini.{type Parser, drop, keep, succeed}
 
 pub fn surrounded_by(
   parser: Parser(i, v),

@@ -1,6 +1,6 @@
 import gleam/iterator
 import gleam/string
-import konbini.{type Message, type Parser}
+import konbini.{type Message, type Parser, drop, satisfy, succeed}
 
 pub fn parse(
   string: String,
@@ -16,4 +16,20 @@ pub fn parse(
   }
 
   konbini.parse(input, parser)
+}
+
+pub fn grapheme(wanted: String) -> Parser(String, String) {
+  satisfy(fn(grapheme) { grapheme == wanted })
+}
+
+pub fn string(wanted: String) -> Parser(String, String) {
+  case string.to_graphemes(wanted) {
+    [] -> succeed("")
+
+    [first, ..rest] -> {
+      use <- drop(grapheme(first))
+      use <- drop(string(string.join(rest, "")))
+      succeed(wanted)
+    }
+  }
 }
