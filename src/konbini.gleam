@@ -26,6 +26,7 @@ pub type Unexpected(input) {
 }
 
 pub type Message(input) {
+  // TODO: Option here might be a bit awkward; consider adding another variant.
   Message(Position, message: Option(Unexpected(input)), labels: List(String))
 }
 
