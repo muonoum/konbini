@@ -1,4 +1,4 @@
-import konbini/parsers.{base10_digit, grapheme}
+import konbini/internal/parsers.{base10_digit, grapheme}
 import showtime/tests/should
 
 import konbini.{

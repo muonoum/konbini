@@ -6,7 +6,7 @@ import konbini.{
   parse, some, succeed,
 }
 
-import konbini/parsers.{
+import konbini/internal/parsers.{
   ascii_alphanumeric, ascii_lowercase, grapheme, spaces, string, surrounded_by,
 }
 
