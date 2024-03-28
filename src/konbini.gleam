@@ -1,24 +1,30 @@
 import gleam/list
 import gleam/string
 
-// https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/parsec-paper-letter.pdf
-
 pub opaque type Parser(v) {
   Parser(fn(State) -> Consumed(v))
 }
 
-pub opaque type Consumed(v) {
+type Consumed(v) {
   Consumed(fn() -> Reply(v))
   Empty(Reply(v))
 }
 
-pub opaque type Reply(v) {
-  Success(v, State)
-  Failure
+type Reply(v) {
+  Success(v, State, Message)
+  Failure(Message)
 }
 
-pub opaque type State {
-  State(String)
+type State {
+  State(String, Position)
+}
+
+pub type Message {
+  Message(Position, String, List(String))
+}
+
+pub type Position {
+  Position(Int)
 }
 
 fn run(parser: Parser(v), state: State) -> Consumed(v) {
@@ -26,38 +32,74 @@ fn run(parser: Parser(v), state: State) -> Consumed(v) {
   parse(state)
 }
 
-pub fn parse(string: String, parser: Parser(v)) -> Result(v, Nil) {
-  let state = State(string)
+pub fn parse(string: String, parser: Parser(v)) -> Result(v, Message) {
+  let state = State(string, Position(1))
 
   case run(parser, state) {
-    Empty(_reply) -> Error(Nil)
+    Empty(Failure(message)) -> Error(message)
+    Empty(Success(_value, _state, message)) -> Error(message)
 
     Consumed(reply) ->
       case reply() {
-        Success(value, _state) -> Ok(value)
-        Failure -> Error(Nil)
+        Success(value, _state, _message) -> Ok(value)
+        Failure(message) -> Error(message)
       }
   }
 }
 
+pub fn label(parser: Parser(v), label: String) -> Parser(v) {
+  let add_label = fn(message) {
+    let Message(position, input, _labels) = message
+    Message(position, input, [label])
+  }
+
+  use state <- Parser
+
+  case run(parser, state) {
+    Consumed(reply) -> Consumed(reply)
+    Empty(Failure(message)) -> Empty(Failure(add_label(message)))
+
+    Empty(Success(value, state, message)) ->
+      Empty(Success(value, state, add_label(message)))
+  }
+}
+
 pub fn succeed(value: v) -> Parser(v) {
-  Parser(fn(state) { Empty(Success(value, state)) })
+  use State(_input, position) as state <- Parser
+  let message = Message(position, "", [])
+  Empty(Success(value, state, message))
 }
 
 pub fn fail() -> Parser(v) {
-  Parser(fn(_state) { Empty(Failure) })
+  use State(_input, position) <- Parser
+  let message = Message(position, "", [])
+  Empty(Failure(message))
 }
 
-pub fn satisfy(pred: fn(String) -> Bool) -> Parser(String) {
-  use State(input) <- Parser
+pub fn satisfy(check: fn(String) -> Bool) -> Parser(String) {
+  use State(input, Position(position)) <- Parser
 
   case string.pop_grapheme(input) {
-    Error(Nil) -> Empty(Failure)
+    Error(Nil) -> {
+      let position = Position(position)
+      let message = Message(position, "end of input", [])
+      Empty(Failure(message))
+    }
 
-    Ok(#(first, rest)) -> {
-      case pred(first) {
-        False -> Empty(Failure)
-        True -> Consumed(fn() { Success(first, State(rest)) })
+    Ok(#(grapheme, rest)) -> {
+      case check(grapheme) {
+        False -> {
+          let position = Position(position)
+          let message = Message(position, grapheme, [])
+          Empty(Failure(message))
+        }
+
+        True -> {
+          use <- Consumed
+          let position = Position(position + 1)
+          let message = Message(position, "", [])
+          Success(grapheme, State(rest, position), message)
+        }
       }
     }
   }
@@ -67,15 +109,15 @@ pub fn keep(parser: Parser(a), next: fn(a) -> Parser(b)) -> Parser(b) {
   use state <- Parser
 
   case run(parser, state) {
-    Empty(Failure) -> Empty(Failure)
-    Empty(Success(value, state)) -> run(next(value), state)
+    Empty(Failure(message)) -> Empty(Failure(message))
+    Empty(Success(value, state, _message)) -> run(next(value), state)
 
     Consumed(reply) ->
       Consumed(fn() {
         case reply() {
-          Failure -> Failure
+          Failure(message) -> Failure(message)
 
-          Success(value, state) ->
+          Success(value, state, _message) ->
             case run(next(value), state) {
               Consumed(reply) -> reply()
               Empty(reply) -> reply
@@ -90,16 +132,36 @@ pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
 }
 
 pub fn choice(a: Parser(v), b: Parser(v)) -> Parser(v) {
+  let merge_messages = fn(message1, message2) {
+    let Message(position, input, labels1) = message1
+    let Message(_, _, labels2) = message2
+    Message(position, input, list.append(labels1, labels2))
+  }
+
+  let merge_replies = fn(reply1, reply2) {
+    case reply1, reply2 {
+      Failure(msg1), Failure(msg2) -> Failure(merge_messages(msg1, msg2))
+
+      Failure(msg1), Success(value, state, msg2) ->
+        Success(value, state, merge_messages(msg1, msg2))
+
+      Success(value, state, msg1), Failure(msg2) ->
+        Success(value, state, merge_messages(msg1, msg2))
+
+      Success(_value, _state, msg1), Success(value, state, msg2) ->
+        Success(value, state, merge_messages(msg1, msg2))
+    }
+  }
+
   use state <- Parser
 
   case run(a, state) {
     Consumed(reply) -> Consumed(reply)
-    Empty(Failure) -> run(b, state)
 
-    Empty(success) ->
+    Empty(reply1) ->
       case run(b, state) {
-        Empty(_reply) -> Empty(success)
         Consumed(reply) -> Consumed(reply)
+        Empty(reply2) -> Empty(merge_replies(reply1, reply2))
       }
   }
 }
@@ -117,7 +179,7 @@ pub fn try(parser: Parser(v)) -> Parser(v) {
 
     Consumed(reply) ->
       case reply() {
-        Failure -> Empty(Failure)
+        Failure(message) -> Empty(Failure(message))
         _success -> Consumed(reply)
       }
   }
@@ -143,20 +205,4 @@ pub fn some(parser: Parser(v)) -> Parser(List(v)) {
   use first <- keep(parser)
   use rest <- keep(many(parser))
   succeed([first, ..rest])
-}
-
-pub fn grapheme(want: String) -> Parser(String) {
-  satisfy(fn(grapheme) { grapheme == want })
-}
-
-pub fn string(want: String) -> Parser(String) {
-  case string.to_graphemes(want) {
-    [] -> succeed("")
-
-    [first, ..rest] -> {
-      use <- drop(grapheme(first))
-      use <- drop(string(string.join(rest, "")))
-      succeed(want)
-    }
-  }
 }
