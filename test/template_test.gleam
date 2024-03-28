@@ -1,12 +1,14 @@
 import gleam/string
+import showtime/tests/should
+
 import konbini.{
   Message, Position, any, choice, drop, end, keep, label, many, not_followed_by,
   parse, some, succeed,
 }
+
 import konbini/parsers.{
   ascii_alphanumeric, ascii_lowercase, grapheme, spaces, string, surrounded_by,
 }
-import showtime/tests/should
 
 pub type Part {
   Placeholder

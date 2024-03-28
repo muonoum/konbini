@@ -1,8 +1,9 @@
+import konbini/parsers.{base10_digit, grapheme}
+import showtime/tests/should
+
 import konbini.{
   Message, Position, choice, drop, keep, label, one_of, parse, some, succeed,
 }
-import konbini/parsers.{base10_digit, grapheme}
-import showtime/tests/should
 
 pub fn labels_test() {
   let z = label(grapheme("z"), "z")
