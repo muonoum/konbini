@@ -208,19 +208,3 @@ pub fn some(parser: Parser(v)) -> Parser(List(v)) {
   use rest <- keep(many(parser))
   succeed([first, ..rest])
 }
-
-pub fn grapheme(want: String) -> Parser(String) {
-  satisfy(fn(grapheme) { grapheme == want })
-}
-
-pub fn string(want: String) -> Parser(String) {
-  case string.to_graphemes(want) {
-    [] -> succeed("")
-
-    [first, ..rest] -> {
-      use <- drop(grapheme(first))
-      use <- drop(string(string.join(rest, "")))
-      succeed(want)
-    }
-  }
-}

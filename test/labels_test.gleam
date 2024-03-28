@@ -1,8 +1,7 @@
 import konbini.{
-  Message, Position, choice, drop, grapheme, keep, label, one_of, parse, some,
-  succeed,
+  Message, Position, choice, drop, keep, label, one_of, parse, some, succeed,
 }
-import konbini/parsers.{base10_digit}
+import konbini/parsers.{base10_digit, grapheme}
 import showtime/tests/should
 
 pub fn labels_test() {

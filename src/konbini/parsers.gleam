@@ -1,7 +1,20 @@
 import gleam/string
-import konbini.{
-  type Parser, choice, drop, grapheme, keep, label, many, satisfy, string,
-  succeed,
+import konbini.{type Parser, choice, drop, keep, label, many, satisfy, succeed}
+
+pub fn grapheme(want: String) -> Parser(String) {
+  satisfy(fn(grapheme) { grapheme == want })
+}
+
+pub fn string(want: String) -> Parser(String) {
+  case string.to_graphemes(want) {
+    [] -> succeed("")
+
+    [first, ..rest] -> {
+      use <- drop(grapheme(first))
+      use <- drop(string(string.join(rest, "")))
+      succeed(want)
+    }
+  }
 }
 
 pub fn ascii_lowercase() -> Parser(String) {
@@ -24,9 +37,8 @@ pub fn ascii_alphanumeric() -> Parser(String) {
   |> label("ascii alpha numeric character")
 }
 
-pub fn spaces() -> Parser(Nil) {
-  use <- drop(many(grapheme(" ")))
-  succeed(Nil)
+pub fn spaces() -> Parser(List(String)) {
+  many(grapheme(" "))
 }
 
 pub fn surrounded_by(

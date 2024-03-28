@@ -1,5 +1,5 @@
-import konbini.{choice, grapheme, parse, try}
-import konbini/parsers.{ascii_lowercase, base10_digit, surrounded_by}
+import konbini.{choice, parse, try}
+import konbini/parsers.{ascii_lowercase, base10_digit, grapheme, surrounded_by}
 import showtime/tests/should
 
 pub fn ll_fail_test() {
