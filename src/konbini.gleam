@@ -20,7 +20,7 @@ type State {
 }
 
 pub type Message {
-  Message(Position, String, List(String))
+  Message(Position, message: String, labels: List(String))
 }
 
 pub type Position {
@@ -133,9 +133,8 @@ pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
 
 pub fn choice(a: Parser(v), b: Parser(v)) -> Parser(v) {
   let merge_messages = fn(message1, message2) {
-    let Message(position, input, labels1) = message1
-    let Message(_, _, labels2) = message2
-    Message(position, input, list.append(labels1, labels2))
+    let Message(_position, _message, labels) = message2
+    Message(..message1, labels: list.append(message1.labels, labels))
   }
 
   let merge_replies = fn(reply1, reply2) {
