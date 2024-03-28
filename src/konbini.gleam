@@ -78,7 +78,7 @@ pub fn fail() -> Parser(v) {
   Empty(Failure(message))
 }
 
-pub fn satisfy(pred: fn(String) -> Bool) -> Parser(String) {
+pub fn satisfy(check: fn(String) -> Bool) -> Parser(String) {
   use State(input, Position(position)) <- Parser
 
   case string.pop_grapheme(input) {
@@ -89,7 +89,7 @@ pub fn satisfy(pred: fn(String) -> Bool) -> Parser(String) {
     }
 
     Ok(#(grapheme, rest)) -> {
-      case pred(grapheme) {
+      case check(grapheme) {
         False -> {
           let position = Position(position)
           let message = Message(position, grapheme, [])
