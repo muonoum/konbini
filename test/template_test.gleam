@@ -1,7 +1,7 @@
 import gleam/string
 import konbini.{
-  any, choice, drop, end, grapheme, keep, label, many, not_followed_by, parse,
-  some, string, succeed,
+  Message, Position, any, choice, drop, end, grapheme, keep, label, many,
+  not_followed_by, parse, some, string, succeed,
 }
 import konbini/parsers.{
   ascii_alphanumeric, ascii_lowercase, spaces, surrounded_by,
@@ -16,14 +16,23 @@ pub type Part {
 
 pub fn template_test() {
   let open = {
-    use <- drop(string("{{"))
+    use <- drop(
+      string("{{")
+      |> label("opening braces"),
+    )
+
     use <- drop(spaces())
     succeed(Nil)
   }
 
   let close = {
     use <- drop(spaces())
-    use <- drop(string("}}"))
+
+    use <- drop(
+      string("}}")
+      |> label("closing braces"),
+    )
+
     succeed(Nil)
   }
 
@@ -76,9 +85,8 @@ pub fn template_test() {
   )
 
   parse("one {{ / }} three {{_}} four", template)
-  |> should.be_error()
+  |> should.equal(Error(Message(Position(8), "/", ["_", "id"])))
 
-  // TODO: burde vi hatt labels i message her?
-  parse("one {{ two }} three {{_foo}} four", template)
-  |> should.be_error()
+  parse("one {{ two }} three {{_x}} four", template)
+  |> should.equal(Error(Message(Position(24), "x", ["closing braces"])))
 }
