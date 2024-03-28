@@ -1,5 +1,5 @@
+import helpers.{ascii_lowercase, base10_digit} as _internal
 import konbini.{choice, try}
-import konbini/internal/parsers.{ascii_lowercase, base10_digit} as _internal
 import konbini/parsers.{grapheme, surrounded_by}
 import konbini/strings
 import showtime/tests/should

@@ -1,6 +1,6 @@
 import gleam/option.{Some}
 import gleam/string
-import konbini/internal/parsers.{ascii_alphanumeric, ascii_lowercase, spaces} as _internal
+import helpers.{ascii_alphanumeric, ascii_lowercase, spaces} as _internal
 import konbini/parsers.{grapheme, string, surrounded_by}
 import konbini/strings
 import showtime/tests/should
