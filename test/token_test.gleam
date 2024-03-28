@@ -16,10 +16,15 @@ pub type Number {
   Number(Token)
 }
 
+pub fn expect(wanted: Token) -> Parser(Token, Token) {
+  use token <- satisfy
+  token == wanted
+}
+
 pub fn parser() -> Parser(Token, Number) {
-  use <- drop(satisfy(fn(token) { token == Ichi }))
-  use token <- keep(satisfy(fn(token) { token == Ni }))
-  use <- drop(satisfy(fn(token) { token == San }))
+  use <- drop(expect(Ichi))
+  use token <- keep(expect(Ni))
+  use <- drop(expect(San))
   succeed(Number(token))
 }
 
