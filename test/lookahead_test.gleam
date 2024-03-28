@@ -1,4 +1,4 @@
-import helpers.{ascii_lowercase, base10_digit} as _internal
+import helpers.{ascii_lowercase, base10_digit}
 import konbini.{choice, try}
 import konbini/parsers.{surrounded_by}
 import konbini/strings.{grapheme}

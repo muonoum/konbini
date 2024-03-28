@@ -1,5 +1,5 @@
 import gleam/option.{Some}
-import helpers.{base10_digit} as _internal
+import helpers.{base10_digit}
 import konbini/strings.{grapheme}
 import showtime/tests/should
 
