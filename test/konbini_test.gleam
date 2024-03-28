@@ -2,14 +2,8 @@ import gleam/string
 import gleeunit
 import gleeunit/should
 import konbini.{
-  any, choice, drop, end, grapheme, keep, many, not_followed_by, one_of, parse,
-  satisfy, some, string, succeed, try,
-}
-
-type Part {
-  Placeholder
-  Reference(String)
-  Static(String)
+  any, choice, drop, end, grapheme, keep, many, not_followed_by, parse, satisfy,
+  some, string, succeed, try,
 }
 
 pub fn main() {
@@ -36,65 +30,46 @@ fn spaces() {
   many(grapheme(" "))
 }
 
-pub fn interpolate1_test() {
-  let open = string("{{")
-  let close = string("}}")
-
-  let static = {
-    use parts <- keep(
-      some({
-        use <- drop(not_followed_by(open))
-        use grapheme <- keep(any())
-        succeed(grapheme)
-      }),
-    )
-
-    succeed(Static(string.join(parts, "")))
-  }
-
-  let reference = {
-    let initial = ascii_lowercase()
-    let symbol = choice(grapheme("-"), grapheme("_"))
-    let subsequent = choice(symbol, ascii_alphanumeric())
-
-    use <- drop(open)
-    use <- drop(spaces())
-    use first <- keep(initial)
-    use rest <- keep(many(subsequent))
-    use <- drop(spaces())
-    use <- drop(close)
-    succeed(Reference(string.join([first, ..rest], "")))
-  }
-
-  let placeholder = {
-    use <- drop(open)
-    use <- drop(spaces())
-    use <- drop(grapheme("_"))
-    use <- drop(spaces())
-    use <- drop(close)
-    succeed(Placeholder)
-  }
-
-  let text = {
-    let part = one_of([try(static), try(reference), placeholder])
-    use parts <- keep(many(part))
-    use <- drop(end())
-    succeed(parts)
-  }
-
-  parse("ja {{ ref }} nei {{_}} kanskje", text)
-  |> should.equal(
-    Ok([
-      Static("ja "),
-      Reference("ref"),
-      Static(" nei "),
-      Placeholder,
-      Static(" kanskje"),
-    ]),
-  )
+fn surrounded_by(parser, open, close) {
+  use <- drop(open)
+  use <- drop(spaces())
+  use token <- keep(parser)
+  use <- drop(spaces())
+  use <- drop(close)
+  succeed(token)
 }
 
-pub fn interpolate2_test() {
+pub fn ll_fail_test() {
+  let parser = {
+    let token = surrounded_by(_, grapheme("("), grapheme(")"))
+    let digits = token(digit())
+    let letters = token(ascii_lowercase())
+    choice(letters, digits)
+  }
+
+  parse("(1)", parser)
+  |> should.equal(Error(Nil))
+}
+
+pub fn ll_ok_test() {
+  let parser = {
+    let token = surrounded_by(_, grapheme("("), grapheme(")"))
+    let digits = token(digit())
+    let letters = token(ascii_lowercase())
+    choice(try(letters), digits)
+  }
+
+  parse("(1)", parser)
+  |> should.equal(Ok("1"))
+}
+
+pub type Part {
+  Placeholder
+  Reference(String)
+  Static(String)
+}
+
+pub fn template_string_test() {
   let open = string("{{")
   let close = string("}}")
 
@@ -125,28 +100,24 @@ pub fn interpolate2_test() {
       succeed(Reference(string.join([first, ..rest], "")))
     }
 
-    use <- drop(open)
-    use <- drop(spaces())
-    use part <- keep(choice(placeholder, id))
-    use <- drop(spaces())
-    use <- drop(close)
-    succeed(part)
+    choice(placeholder, id)
+    |> surrounded_by(open, close)
   }
 
-  let text = {
+  let template = {
     use parts <- keep(many(choice(reference, static)))
     use <- drop(end())
     succeed(parts)
   }
 
-  parse("ja {{ ref }} nei {{_}} kanskje", text)
+  parse("one {{ two }} three {{_}} four", template)
   |> should.equal(
     Ok([
-      Static("ja "),
-      Reference("ref"),
-      Static(" nei "),
+      Static("one "),
+      Reference("two"),
+      Static(" three "),
       Placeholder,
-      Static(" kanskje"),
+      Static(" four"),
     ]),
   )
 }
