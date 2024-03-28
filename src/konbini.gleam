@@ -18,15 +18,15 @@ pub opaque type Reply(v) {
 }
 
 pub opaque type State {
-  State(String, Location)
+  State(String, Position)
 }
 
 pub type Message {
-  Message(Location, String, List(String))
+  Message(Position, String, List(String))
 }
 
-pub type Location {
-  Location(Int)
+pub type Position {
+  Position(Int)
 }
 
 fn run(parser: Parser(v), state: State) -> Consumed(v) {
@@ -35,7 +35,7 @@ fn run(parser: Parser(v), state: State) -> Consumed(v) {
 }
 
 pub fn parse(string: String, parser: Parser(v)) -> Result(v, Message) {
-  let state = State(string, Location(1))
+  let state = State(string, Position(1))
 
   case run(parser, state) {
     Empty(Failure(message)) -> Error(message)
@@ -51,8 +51,8 @@ pub fn parse(string: String, parser: Parser(v)) -> Result(v, Message) {
 
 pub fn label(parser: Parser(v), label: String) -> Parser(v) {
   let add_label = fn(message) {
-    let Message(location, input, _labels) = message
-    Message(location, input, [label])
+    let Message(position, input, _labels) = message
+    Message(position, input, [label])
   }
 
   use state <- Parser
@@ -67,40 +67,40 @@ pub fn label(parser: Parser(v), label: String) -> Parser(v) {
 }
 
 pub fn succeed(value: v) -> Parser(v) {
-  use State(_input, location) as state <- Parser
-  let message = Message(location, "", [])
+  use State(_input, position) as state <- Parser
+  let message = Message(position, "", [])
   Empty(Success(value, state, message))
 }
 
 pub fn fail() -> Parser(v) {
-  use State(_input, location) <- Parser
-  let message = Message(location, "", [])
+  use State(_input, position) <- Parser
+  let message = Message(position, "", [])
   Empty(Failure(message))
 }
 
 pub fn satisfy(pred: fn(String) -> Bool) -> Parser(String) {
-  use State(input, Location(location)) <- Parser
+  use State(input, Position(position)) <- Parser
 
   case string.pop_grapheme(input) {
     Error(Nil) -> {
-      let location = Location(location)
-      let message = Message(location, "end of input", [])
+      let position = Position(position)
+      let message = Message(position, "end of input", [])
       Empty(Failure(message))
     }
 
     Ok(#(grapheme, rest)) -> {
       case pred(grapheme) {
         False -> {
-          let location = Location(location)
-          let message = Message(location, grapheme, [])
+          let position = Position(position)
+          let message = Message(position, grapheme, [])
           Empty(Failure(message))
         }
 
         True -> {
           use <- Consumed
-          let location = Location(location + 1)
-          let message = Message(location, "", [])
-          Success(grapheme, State(rest, location), message)
+          let position = Position(position + 1)
+          let message = Message(position, "", [])
+          Success(grapheme, State(rest, position), message)
         }
       }
     }
@@ -135,24 +135,23 @@ pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
 
 pub fn choice(a: Parser(v), b: Parser(v)) -> Parser(v) {
   let merge_messages = fn(message1, message2) {
-    let Message(location, input, labels1) = message1
+    let Message(position, input, labels1) = message1
     let Message(_, _, labels2) = message2
-    Message(location, input, list.append(labels1, labels2))
+    Message(position, input, list.append(labels1, labels2))
   }
 
   let merge_replies = fn(reply1, reply2) {
     case reply1, reply2 {
-      Failure(message1), Failure(message2) ->
-        Failure(merge_messages(message1, message2))
+      Failure(msg1), Failure(msg2) -> Failure(merge_messages(msg1, msg2))
 
-      Failure(message1), Success(value, state, message2) ->
-        Success(value, state, merge_messages(message1, message2))
+      Failure(msg1), Success(value, state, msg2) ->
+        Success(value, state, merge_messages(msg1, msg2))
 
-      Success(value, state, message1), Failure(message2) ->
-        Success(value, state, merge_messages(message1, message2))
+      Success(value, state, msg1), Failure(msg2) ->
+        Success(value, state, merge_messages(msg1, msg2))
 
-      Success(_value, _state, message1), Success(value, state, message2) ->
-        Success(value, state, merge_messages(message1, message2))
+      Success(_value, _state, msg1), Success(value, state, msg2) ->
+        Success(value, state, merge_messages(msg1, msg2))
     }
   }
 
