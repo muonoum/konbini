@@ -13,12 +13,20 @@ pub opaque type Consumed(v) {
 }
 
 pub opaque type Reply(v) {
-  Success(v, State)
-  Failure
+  Success(v, State, Message)
+  Failure(Message)
 }
 
 pub opaque type State {
-  State(String)
+  State(String, Location)
+}
+
+pub type Message {
+  Message(Location, String, List(String))
+}
+
+pub type Location {
+  Location(Int)
 }
 
 fn run(parser: Parser(v), state: State) -> Consumed(v) {
@@ -26,38 +34,74 @@ fn run(parser: Parser(v), state: State) -> Consumed(v) {
   parse(state)
 }
 
-pub fn parse(string: String, parser: Parser(v)) -> Result(v, Nil) {
-  let state = State(string)
+pub fn parse(string: String, parser: Parser(v)) -> Result(v, Message) {
+  let state = State(string, Location(1))
 
   case run(parser, state) {
-    Empty(_reply) -> Error(Nil)
+    Empty(Failure(message)) -> Error(message)
+    Empty(Success(_value, _state, message)) -> Error(message)
 
     Consumed(reply) ->
       case reply() {
-        Success(value, _state) -> Ok(value)
-        Failure -> Error(Nil)
+        Success(value, _state, _message) -> Ok(value)
+        Failure(message) -> Error(message)
       }
   }
 }
 
+pub fn label(parser: Parser(v), label: String) -> Parser(v) {
+  let add_label = fn(message) {
+    let Message(location, input, _labels) = message
+    Message(location, input, [label])
+  }
+
+  use state <- Parser
+
+  case run(parser, state) {
+    Consumed(reply) -> Consumed(reply)
+    Empty(Failure(message)) -> Empty(Failure(add_label(message)))
+
+    Empty(Success(value, state, message)) ->
+      Empty(Success(value, state, add_label(message)))
+  }
+}
+
 pub fn succeed(value: v) -> Parser(v) {
-  Parser(fn(state) { Empty(Success(value, state)) })
+  use State(_input, location) as state <- Parser
+  let message = Message(location, "", [])
+  Empty(Success(value, state, message))
 }
 
 pub fn fail() -> Parser(v) {
-  Parser(fn(_state) { Empty(Failure) })
+  use State(_input, location) <- Parser
+  let message = Message(location, "", [])
+  Empty(Failure(message))
 }
 
 pub fn satisfy(pred: fn(String) -> Bool) -> Parser(String) {
-  use State(input) <- Parser
+  use State(input, Location(location)) <- Parser
 
   case string.pop_grapheme(input) {
-    Error(Nil) -> Empty(Failure)
+    Error(Nil) -> {
+      let location = Location(location)
+      let message = Message(location, "end of input", [])
+      Empty(Failure(message))
+    }
 
-    Ok(#(first, rest)) -> {
-      case pred(first) {
-        False -> Empty(Failure)
-        True -> Consumed(fn() { Success(first, State(rest)) })
+    Ok(#(grapheme, rest)) -> {
+      case pred(grapheme) {
+        False -> {
+          let location = Location(location)
+          let message = Message(location, grapheme, [])
+          Empty(Failure(message))
+        }
+
+        True -> {
+          use <- Consumed
+          let location = Location(location + 1)
+          let message = Message(location, "", [])
+          Success(grapheme, State(rest, location), message)
+        }
       }
     }
   }
@@ -67,15 +111,15 @@ pub fn keep(parser: Parser(a), next: fn(a) -> Parser(b)) -> Parser(b) {
   use state <- Parser
 
   case run(parser, state) {
-    Empty(Failure) -> Empty(Failure)
-    Empty(Success(value, state)) -> run(next(value), state)
+    Empty(Failure(message)) -> Empty(Failure(message))
+    Empty(Success(value, state, _message)) -> run(next(value), state)
 
     Consumed(reply) ->
       Consumed(fn() {
         case reply() {
-          Failure -> Failure
+          Failure(message) -> Failure(message)
 
-          Success(value, state) ->
+          Success(value, state, _message) ->
             case run(next(value), state) {
               Consumed(reply) -> reply()
               Empty(reply) -> reply
@@ -90,16 +134,35 @@ pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
 }
 
 pub fn choice(a: Parser(v), b: Parser(v)) -> Parser(v) {
+  let merge = fn(message1, message2) {
+    let Message(location, input, labels1) = message1
+    let Message(_, _, labels2) = message2
+    Message(location, input, list.append(labels1, labels2))
+  }
+
   use state <- Parser
 
   case run(a, state) {
     Consumed(reply) -> Consumed(reply)
-    Empty(Failure) -> run(b, state)
 
-    Empty(success) ->
+    Empty(Failure(message1)) ->
       case run(b, state) {
-        Empty(_reply) -> Empty(success)
         Consumed(reply) -> Consumed(reply)
+        Empty(Failure(message2)) -> Empty(Failure(merge(message1, message2)))
+
+        Empty(Success(value, state, message2)) ->
+          Empty(Success(value, state, merge(message1, message2)))
+      }
+
+    Empty(Success(value, state, message1)) ->
+      case run(b, state) {
+        Consumed(reply) -> Consumed(reply)
+
+        Empty(Failure(message2)) ->
+          Empty(Success(value, state, merge(message1, message2)))
+
+        Empty(Success(value, state, message2)) ->
+          Empty(Success(value, state, merge(message1, message2)))
       }
   }
 }
@@ -117,7 +180,7 @@ pub fn try(parser: Parser(v)) -> Parser(v) {
 
     Consumed(reply) ->
       case reply() {
-        Failure -> Empty(Failure)
+        Failure(message) -> Empty(Failure(message))
         _success -> Consumed(reply)
       }
   }

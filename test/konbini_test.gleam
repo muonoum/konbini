@@ -2,8 +2,8 @@ import gleam/string
 import gleeunit
 import gleeunit/should
 import konbini.{
-  any, choice, drop, end, grapheme, keep, many, not_followed_by, parse, satisfy,
-  some, string, succeed, try,
+  Location, Message, any, choice, drop, end, grapheme, keep, label, many,
+  not_followed_by, one_of, parse, satisfy, some, string, succeed, try,
 }
 
 pub fn main() {
@@ -39,6 +39,25 @@ fn surrounded_by(parser, open, close) {
   succeed(token)
 }
 
+pub fn labels_test() {
+  let z = label(grapheme("z"), "z")
+  let x = label(grapheme("x"), "x")
+  let zx = choice(z, x)
+
+  let p = label(grapheme("p"), "p")
+  let q = label(grapheme("q"), "q")
+  let pq = choice(p, q)
+
+  let parser = {
+    use <- drop(some(digit()))
+    use token <- keep(one_of([zx, pq]))
+    succeed(token)
+  }
+
+  parse("1234abd", parser)
+  |> should.equal(Error(Message(Location(5), "a", ["z", "x", "p", "q"])))
+}
+
 pub fn ll_fail_test() {
   let parser = {
     let token = surrounded_by(_, grapheme("("), grapheme(")"))
@@ -48,7 +67,7 @@ pub fn ll_fail_test() {
   }
 
   parse("(1)", parser)
-  |> should.equal(Error(Nil))
+  |> should.equal(Error(Message(Location(2), "1", [])))
 }
 
 pub fn ll_ok_test() {
