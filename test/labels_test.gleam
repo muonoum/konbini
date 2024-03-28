@@ -1,8 +1,11 @@
-import konbini/internal/parsers.{base10_digit, grapheme}
+import gleam/option.{Some}
+import konbini/internal/parsers.{base10_digit} as _internal
+import konbini/parsers.{grapheme}
 import showtime/tests/should
 
 import konbini.{
-  Message, Position, choice, drop, keep, label, one_of, parse, some, succeed,
+  Message, Position, Unexpected, choice, drop, keep, label, one_of, parse_string,
+  some, succeed,
 }
 
 pub fn labels_test() {
@@ -20,6 +23,8 @@ pub fn labels_test() {
     succeed(token)
   }
 
-  parse("1234abd", parser)
-  |> should.equal(Error(Message(Position(5), "a", ["z", "x", "p", "q"])))
+  parse_string("1234abd", parser)
+  |> should.equal(
+    Error(Message(Position(5), Some(Unexpected("a")), ["z", "x", "p", "q"])),
+  )
 }

@@ -1,13 +1,12 @@
+import gleam/option.{Some}
 import gleam/string
+import konbini/internal/parsers.{ascii_alphanumeric, ascii_lowercase, spaces} as _internal
+import konbini/parsers.{grapheme, string, surrounded_by}
 import showtime/tests/should
 
 import konbini.{
-  Message, Position, any, choice, drop, end, keep, label, many, not_followed_by,
-  parse, some, succeed,
-}
-
-import konbini/internal/parsers.{
-  ascii_alphanumeric, ascii_lowercase, grapheme, spaces, string, surrounded_by,
+  Message, Position, Unexpected, any, choice, drop, end, keep, label, many,
+  not_followed_by, parse_string, some, succeed,
 }
 
 pub type Part {
@@ -66,7 +65,7 @@ pub fn template_test() {
     succeed(parts)
   }
 
-  parse("one {{ two }} three {{_}} four", template)
+  parse_string("one {{ two }} three {{_}} four", template)
   |> should.equal(
     Ok([
       Static("one "),
@@ -77,9 +76,13 @@ pub fn template_test() {
     ]),
   )
 
-  parse("one {{ / }} three {{_}} four", template)
-  |> should.equal(Error(Message(Position(8), "/", ["placeholder", "id"])))
+  parse_string("one {{ / }} three {{_}} four", template)
+  |> should.equal(
+    Error(Message(Position(8), Some(Unexpected("/")), ["placeholder", "id"])),
+  )
 
-  parse("one {{ two }} three {{_x}} four", template)
-  |> should.equal(Error(Message(Position(24), "x", ["closing braces"])))
+  parse_string("one {{ two }} three {{_x}} four", template)
+  |> should.equal(
+    Error(Message(Position(24), Some(Unexpected("x")), ["closing braces"])),
+  )
 }
