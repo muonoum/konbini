@@ -16,23 +16,14 @@ pub type Part {
 
 pub fn template_test() {
   let open = {
-    use <- drop(
-      string("{{")
-      |> label("opening braces"),
-    )
-
+    use <- drop(label(string("{{"), "opening braces"))
     use <- drop(spaces())
     succeed(Nil)
   }
 
   let close = {
     use <- drop(spaces())
-
-    use <- drop(
-      string("}}")
-      |> label("closing braces"),
-    )
-
+    use <- drop(label(string("}}"), "closing braces"))
     succeed(Nil)
   }
 
@@ -63,7 +54,7 @@ pub fn template_test() {
       succeed(Reference(string.join([first, ..rest], "")))
     }
 
-    choice(label(placeholder, "_"), label(id, "id"))
+    choice(label(placeholder, "placeholder"), label(id, "id"))
     |> surrounded_by(open, close)
   }
 
@@ -85,7 +76,7 @@ pub fn template_test() {
   )
 
   parse("one {{ / }} three {{_}} four", template)
-  |> should.equal(Error(Message(Position(8), "/", ["_", "id"])))
+  |> should.equal(Error(Message(Position(8), "/", ["placeholder", "id"])))
 
   parse("one {{ two }} three {{_x}} four", template)
   |> should.equal(Error(Message(Position(24), "x", ["closing braces"])))
