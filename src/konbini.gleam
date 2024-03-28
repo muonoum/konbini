@@ -1,8 +1,6 @@
 import gleam/list
 import gleam/string
 
-// https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/parsec-paper-letter.pdf
-
 pub opaque type Parser(v) {
   Parser(fn(State) -> Consumed(v))
 }
