@@ -39,18 +39,10 @@ fn run(parser: Parser(_, value), state: State(_)) -> Consumed(_, value) {
   parse(state)
 }
 
-pub fn parse_string(
-  string: String,
-  parser: Parser(_, value),
+pub fn parse(
+  input: Iterator(input),
+  parser: Parser(input, value),
 ) -> Result(value, Message(_)) {
-  let input = {
-    use state <- iterator.unfold(string)
-    case string.pop_grapheme(state) {
-      Error(Nil) -> iterator.Done
-      Ok(#(grapheme, state)) -> iterator.Next(grapheme, state)
-    }
-  }
-
   let state = State(input, Position(1))
 
   case run(parser, state) {
@@ -63,6 +55,22 @@ pub fn parse_string(
         Failure(message) -> Error(message)
       }
   }
+}
+
+pub fn parse_string(
+  string: String,
+  parser: Parser(_, value),
+) -> Result(value, Message(_)) {
+  let input = {
+    use state <- iterator.unfold(string)
+
+    case string.pop_grapheme(state) {
+      Error(Nil) -> iterator.Done
+      Ok(#(grapheme, state)) -> iterator.Next(grapheme, state)
+    }
+  }
+
+  parse(input, parser)
 }
 
 pub fn label(parser: Parser(_, _), label: String) -> Parser(_, _) {
