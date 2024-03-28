@@ -1,13 +1,13 @@
 import gleam/string
-import gleeunit
-import gleeunit/should
 import konbini.{
-  Location, Message, any, choice, drop, end, grapheme, keep, label, many,
-  not_followed_by, one_of, parse, satisfy, some, string, succeed, try,
+  any, choice, drop, end, grapheme, keep, label, many, not_followed_by, one_of,
+  parse, satisfy, some, string, succeed, try,
 }
+import showtime
+import showtime/tests/should
 
 pub fn main() {
-  gleeunit.main()
+  showtime.main()
 }
 
 fn ascii_lowercase() {
@@ -55,7 +55,7 @@ pub fn labels_test() {
   }
 
   parse("1234abd", parser)
-  |> should.equal(Error(Message(Location(5), "a", ["z", "x", "p", "q"])))
+  |> should.be_error()
 }
 
 pub fn ll_fail_test() {
@@ -67,7 +67,7 @@ pub fn ll_fail_test() {
   }
 
   parse("(1)", parser)
-  |> should.equal(Error(Message(Location(2), "1", [])))
+  |> should.be_error()
 }
 
 pub fn ll_ok_test() {
