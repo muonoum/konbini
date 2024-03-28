@@ -134,10 +134,26 @@ pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
 }
 
 pub fn choice(a: Parser(v), b: Parser(v)) -> Parser(v) {
-  let merge = fn(message1, message2) {
+  let merge_messages = fn(message1, message2) {
     let Message(location, input, labels1) = message1
     let Message(_, _, labels2) = message2
     Message(location, input, list.append(labels1, labels2))
+  }
+
+  let merge_replies = fn(reply1, reply2) {
+    case reply1, reply2 {
+      Failure(message1), Failure(message2) ->
+        Failure(merge_messages(message1, message2))
+
+      Failure(message1), Success(value, state, message2) ->
+        Success(value, state, merge_messages(message1, message2))
+
+      Success(value, state, message1), Failure(message2) ->
+        Success(value, state, merge_messages(message1, message2))
+
+      Success(_value, _state, message1), Success(value, state, message2) ->
+        Success(value, state, merge_messages(message1, message2))
+    }
   }
 
   use state <- Parser
@@ -145,24 +161,10 @@ pub fn choice(a: Parser(v), b: Parser(v)) -> Parser(v) {
   case run(a, state) {
     Consumed(reply) -> Consumed(reply)
 
-    Empty(Failure(message1)) ->
+    Empty(reply1) ->
       case run(b, state) {
         Consumed(reply) -> Consumed(reply)
-        Empty(Failure(message2)) -> Empty(Failure(merge(message1, message2)))
-
-        Empty(Success(value, state, message2)) ->
-          Empty(Success(value, state, merge(message1, message2)))
-      }
-
-    Empty(Success(value, state, message1)) ->
-      case run(b, state) {
-        Consumed(reply) -> Consumed(reply)
-
-        Empty(Failure(message2)) ->
-          Empty(Success(value, state, merge(message1, message2)))
-
-        Empty(Success(value, state, message2)) ->
-          Empty(Success(value, state, merge(message1, message2)))
+        Empty(reply2) -> Empty(merge_replies(reply1, reply2))
       }
   }
 }
