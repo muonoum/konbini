@@ -1,7 +1,6 @@
 import gleam/iterator.{type Iterator}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/string
 
 pub opaque type Parser(input, value) {
   Parser(fn(State(input)) -> Consumed(input, value))
@@ -55,22 +54,6 @@ pub fn parse(
         Failure(message) -> Error(message)
       }
   }
-}
-
-pub fn parse_string(
-  string: String,
-  parser: Parser(_, value),
-) -> Result(value, Message(_)) {
-  let input = {
-    use state <- iterator.unfold(string)
-
-    case string.pop_grapheme(state) {
-      Error(Nil) -> iterator.Done
-      Ok(#(grapheme, state)) -> iterator.Next(grapheme, state)
-    }
-  }
-
-  parse(input, parser)
 }
 
 pub fn label(parser: Parser(_, _), label: String) -> Parser(_, _) {
