@@ -1,7 +1,6 @@
 import helpers.{ascii_lowercase, base10_digit}
 import konbini.{choice, try}
-import konbini/parsers.{surrounded_by}
-import konbini/strings.{grapheme}
+import konbini/parsers.{grapheme, surrounded_by}
 import showtime/tests/should
 
 pub fn ll_fail_test() {
@@ -12,7 +11,7 @@ pub fn ll_fail_test() {
     choice(letters, digits)
   }
 
-  strings.parse("(1)", parser)
+  konbini.parse("(1)", parser)
   |> should.be_error()
 }
 
@@ -24,6 +23,6 @@ pub fn ll_ok_test() {
     choice(try(letters), digits)
   }
 
-  strings.parse("(1)", parser)
+  konbini.parse("(1)", parser)
   |> should.equal(Ok("1"))
 }
