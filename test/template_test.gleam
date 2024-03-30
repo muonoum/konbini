@@ -1,11 +1,10 @@
 import gleam/string
 import helpers.{ascii_alphanumeric, ascii_lowercase, spaces}
-import konbini/parsers.{grapheme, string, surrounded_by}
 import showtime/tests/should
 
 import konbini.{
-  Message, Position, any, choice, drop, end, keep, label, many, not_followed_by,
-  some, succeed,
+  Message, Position, any, choice, drop, end, grapheme, keep, label, many,
+  not_followed_by, some, string, succeed, surrounded_by,
 }
 
 pub type Part {

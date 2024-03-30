@@ -1,6 +1,5 @@
 import gleam/string
-import konbini.{type Parser, choice, expect, label, many}
-import konbini/parsers.{grapheme}
+import konbini.{type Parser, choice, expect, grapheme, label, many}
 
 pub fn ascii_lowercase() -> Parser(String) {
   expect(string.contains("abcdefgijklmnopqrstuvwxyz", _))
