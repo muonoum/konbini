@@ -74,11 +74,6 @@ pub fn expect(check: fn(String) -> Bool) -> Parser(String) {
 }
 
 pub fn label(parser: Parser(v), label: String) -> Parser(v) {
-  let add_label = fn(message) {
-    let Message(position, input, _labels) = message
-    Message(position, input, [label])
-  }
-
   use state <- Parser
 
   case run(parser, state) {
@@ -86,30 +81,29 @@ pub fn label(parser: Parser(v), label: String) -> Parser(v) {
 
     Empty(reply) ->
       case reply() {
-        Failure(message) -> Empty(fn() { Failure(add_label(message)) })
+        Failure(message) -> Empty(fn() { Failure(put_label(message, label)) })
 
         Success(value, state, message) ->
-          Empty(fn() { Success(value, state, add_label(message)) })
+          Empty(fn() { Success(value, state, put_label(message, label)) })
       }
   }
 }
 
+fn put_label(message, label) {
+  let Message(position, input, _labels) = message
+  Message(position, input, [label])
+}
+
 pub fn succeed(value: v) -> Parser(v) {
   use State(_input, position) as state <- Parser
-
-  Empty(fn() {
-    let message = Message(position, "", [])
-    Success(value, state, message)
-  })
+  let message = Message(position, "", [])
+  Empty(fn() { Success(value, state, message) })
 }
 
 pub fn fail() -> Parser(v) {
   use State(_input, position) <- Parser
-
-  Empty(fn() {
-    let message = Message(position, "", [])
-    Failure(message)
-  })
+  let message = Message(position, "", [])
+  Empty(fn() { Failure(message) })
 }
 
 pub fn keep(parser: Parser(a), next: fn(a) -> Parser(b)) -> Parser(b) {
@@ -143,26 +137,6 @@ pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
 }
 
 pub fn choice(a: Parser(v), b: Parser(v)) -> Parser(v) {
-  let merge_messages = fn(message1, message2) {
-    let Message(_position, _message, labels) = message2
-    Message(..message1, labels: list.append(message1.labels, labels))
-  }
-
-  let merge_replies = fn(reply1, reply2) {
-    case reply1, reply2 {
-      Failure(msg1), Failure(msg2) -> Failure(merge_messages(msg1, msg2))
-
-      Failure(msg1), Success(value, state, msg2) ->
-        Success(value, state, merge_messages(msg1, msg2))
-
-      Success(value, state, msg1), Failure(msg2) ->
-        Success(value, state, merge_messages(msg1, msg2))
-
-      Success(_value, _state, msg1), Success(value, state, msg2) ->
-        Success(value, state, merge_messages(msg1, msg2))
-    }
-  }
-
   use state <- Parser
 
   case run(a, state) {
@@ -173,6 +147,26 @@ pub fn choice(a: Parser(v), b: Parser(v)) -> Parser(v) {
         Empty(reply2) -> Empty(fn() { merge_replies(reply1(), reply2()) })
         Consumed(reply) -> Consumed(reply)
       }
+  }
+}
+
+fn merge_messages(message1, message2) {
+  let Message(_position, _message, labels) = message2
+  Message(..message1, labels: list.append(message1.labels, labels))
+}
+
+fn merge_replies(reply1, reply2) {
+  case reply1, reply2 {
+    Failure(msg1), Failure(msg2) -> Failure(merge_messages(msg1, msg2))
+
+    Failure(msg1), Success(value, state, msg2) ->
+      Success(value, state, merge_messages(msg1, msg2))
+
+    Success(value, state, msg1), Failure(msg2) ->
+      Success(value, state, merge_messages(msg1, msg2))
+
+    Success(_value, _state, msg1), Success(value, state, msg2) ->
+      Success(value, state, merge_messages(msg1, msg2))
   }
 }
 
@@ -196,7 +190,7 @@ pub fn try(parser: Parser(v)) -> Parser(v) {
 }
 
 pub fn any() -> Parser(String) {
-  use _token <- expect
+  use _grapheme <- expect
   True
 }
 
