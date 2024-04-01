@@ -1,5 +1,5 @@
+import gleeunit/should
 import helpers.{base10_digit}
-import showtime/tests/should
 
 import konbini.{
   Message, Position, choice, drop, grapheme, keep, label, one_of, some, succeed,

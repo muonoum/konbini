@@ -1,6 +1,6 @@
 import gleam/string
+import gleeunit/should
 import helpers.{ascii_alphanumeric, ascii_lowercase, spaces}
-import showtime/tests/should
 
 import konbini.{
   Message, Position, any, choice, drop, end, grapheme, keep, label, many,
