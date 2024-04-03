@@ -1,38 +1,44 @@
+import gleam/iterator.{type Iterator}
 import gleam/list
-import gleam/string
 
-pub opaque type Parser(v) {
-  Parser(fn(State) -> Consumed(v))
+pub opaque type Parser(i, v) {
+  Parser(fn(State(i)) -> Consumed(i, v))
 }
 
-type State {
-  State(String, Position)
+type State(i) {
+  State(Iterator(i), Position)
 }
 
 pub type Position {
   Position(Int)
 }
 
-type Consumed(v) {
-  Consumed(fn() -> Reply(v))
-  Empty(fn() -> Reply(v))
+type Consumed(i, v) {
+  Consumed(fn() -> Reply(i, v))
+  Empty(fn() -> Reply(i, v))
 }
 
-type Reply(v) {
-  Success(v, State, Message)
-  Failure(Message)
+type Reply(i, v) {
+  Success(v, State(i), Message(i))
+  Failure(Message(i))
 }
 
-pub type Message {
-  Message(Position, message: String, labels: List(String))
+pub type Message(i) {
+  Message(Position, message: Unexpected(i), labels: List(String))
 }
 
-fn run(parser: Parser(v), state: State) -> Consumed(v) {
+pub type Unexpected(i) {
+  Nothing
+  UnexpectedEnd
+  Unexpected(i)
+}
+
+fn run(parser: Parser(i, v), state: State(i)) -> Consumed(i, v) {
   let Parser(parse) = parser
   parse(state)
 }
 
-pub fn parse(input: String, parser: Parser(v)) -> Result(v, Message) {
+pub fn parse(input: Iterator(i), parser: Parser(i, v)) -> Result(v, Message(i)) {
   let state = State(input, Position(1))
 
   case run(parser, state) {
@@ -50,22 +56,24 @@ pub fn parse(input: String, parser: Parser(v)) -> Result(v, Message) {
   }
 }
 
-pub fn expect(check: fn(String) -> Bool) -> Parser(String) {
+pub fn expect(check: fn(i) -> Bool) -> Parser(i, i) {
   use State(input, position) <- Parser
 
-  case string.pop_grapheme(input) {
-    Error(Nil) -> Empty(fn() { Failure(Message(position, "end of input", [])) })
+  case iterator.step(input) {
+    iterator.Done ->
+      Empty(fn() { Failure(Message(position, UnexpectedEnd, [])) })
 
-    Ok(#(grapheme, rest)) -> {
-      case check(grapheme) {
-        False -> Empty(fn() { Failure(Message(position, grapheme, [])) })
+    iterator.Next(token, rest) -> {
+      case check(token) {
+        False ->
+          Empty(fn() { Failure(Message(position, Unexpected(token), [])) })
 
         True -> {
           Consumed(fn() {
             let Position(position) = position
             let position = Position(position + 1)
-            let message = Message(position, "", [])
-            Success(grapheme, State(rest, position), message)
+            let message = Message(position, Nothing, [])
+            Success(token, State(rest, position), message)
           })
         }
       }
@@ -73,7 +81,7 @@ pub fn expect(check: fn(String) -> Bool) -> Parser(String) {
   }
 }
 
-pub fn label(parser: Parser(v), label: String) -> Parser(v) {
+pub fn label(parser: Parser(i, v), label: String) -> Parser(i, v) {
   use state <- Parser
 
   case run(parser, state) {
@@ -94,19 +102,19 @@ fn put_label(message, label) {
   Message(position, input, [label])
 }
 
-pub fn succeed(value: v) -> Parser(v) {
+pub fn succeed(value: v) -> Parser(i, v) {
   use State(_input, position) as state <- Parser
-  let message = Message(position, "", [])
+  let message = Message(position, Nothing, [])
   Empty(fn() { Success(value, state, message) })
 }
 
-pub fn fail() -> Parser(v) {
+pub fn fail() -> Parser(i, v) {
   use State(_input, position) <- Parser
-  let message = Message(position, "", [])
+  let message = Message(position, Nothing, [])
   Empty(fn() { Failure(message) })
 }
 
-pub fn keep(parser: Parser(a), next: fn(a) -> Parser(b)) -> Parser(b) {
+pub fn do(parser: Parser(i, a), next: fn(a) -> Parser(i, b)) -> Parser(i, b) {
   use state <- Parser
 
   case run(parser, state) {
@@ -131,12 +139,7 @@ pub fn keep(parser: Parser(a), next: fn(a) -> Parser(b)) -> Parser(b) {
   }
 }
 
-pub fn drop(parser: Parser(a), then: fn() -> Parser(b)) -> Parser(b) {
-  use _value <- keep(parser)
-  then()
-}
-
-pub fn choice(a: Parser(v), b: Parser(v)) -> Parser(v) {
+pub fn choice(a: Parser(i, v), b: Parser(i, v)) -> Parser(i, v) {
   use state <- Parser
 
   case run(a, state) {
@@ -170,12 +173,7 @@ fn merge_replies(reply1, reply2) {
   }
 }
 
-pub fn one_of(parsers: List(Parser(v))) -> Parser(v) {
-  use result, parser <- list.fold_right(parsers, fail())
-  choice(parser, result)
-}
-
-pub fn try(parser: Parser(v)) -> Parser(v) {
+pub fn try(parser: Parser(i, v)) -> Parser(i, v) {
   use state <- Parser
 
   case run(parser, state) {
@@ -187,57 +185,4 @@ pub fn try(parser: Parser(v)) -> Parser(v) {
         _success -> Consumed(reply)
       }
   }
-}
-
-pub fn any() -> Parser(String) {
-  use _grapheme <- expect
-  True
-}
-
-pub fn not_followed_by(parser: Parser(v)) -> Parser(Nil) {
-  drop(parser, fail)
-  |> choice(succeed(Nil))
-  |> try
-}
-
-pub fn end() -> Parser(Nil) {
-  not_followed_by(any())
-}
-
-pub fn many(parser: Parser(v)) -> Parser(List(v)) {
-  choice(some(parser), succeed([]))
-}
-
-pub fn some(parser: Parser(v)) -> Parser(List(v)) {
-  use first <- keep(parser)
-  use rest <- keep(many(parser))
-  succeed([first, ..rest])
-}
-
-pub fn grapheme(wanted: String) -> Parser(String) {
-  use grapheme <- expect
-  grapheme == wanted
-}
-
-pub fn string(wanted: String) -> Parser(String) {
-  case string.to_graphemes(wanted) {
-    [] -> succeed("")
-
-    [first, ..rest] -> {
-      use <- drop(grapheme(first))
-      use <- drop(string(string.join(rest, "")))
-      succeed(wanted)
-    }
-  }
-}
-
-pub fn surrounded_by(
-  parser: Parser(v),
-  open: Parser(a),
-  close: Parser(b),
-) -> Parser(v) {
-  use <- drop(open)
-  use token <- keep(parser)
-  use <- drop(close)
-  succeed(token)
 }

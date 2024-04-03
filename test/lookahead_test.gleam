@@ -1,6 +1,8 @@
 import gleeunit/should
 import helpers.{ascii_lowercase, base10_digit}
-import konbini.{choice, grapheme, surrounded_by, try}
+import konbini.{choice, try}
+import konbini/parsers.{surrounded_by}
+import konbini/strings.{grapheme}
 
 pub fn ll_fail_test() {
   let parser = {
@@ -10,7 +12,7 @@ pub fn ll_fail_test() {
     choice(letters, digits)
   }
 
-  konbini.parse("(1)", parser)
+  strings.parse("(1)", parser)
   |> should.be_error()
 }
 
@@ -22,6 +24,6 @@ pub fn ll_ok_test() {
     choice(try(letters), digits)
   }
 
-  konbini.parse("(1)", parser)
+  strings.parse("(1)", parser)
   |> should.equal(Ok("1"))
 }

@@ -1,9 +1,8 @@
 import gleeunit/should
 import helpers.{base10_digit}
-
-import konbini.{
-  Message, Position, choice, drop, grapheme, keep, label, one_of, some, succeed,
-}
+import konbini.{Message, Position, Unexpected, choice, label, succeed}
+import konbini/parsers.{drop, keep, one_of, some}
+import konbini/strings.{grapheme}
 
 pub fn labels_test() {
   let z = label(grapheme("z"), "z")
@@ -20,6 +19,8 @@ pub fn labels_test() {
     succeed(token)
   }
 
-  konbini.parse("1234abd", parser)
-  |> should.equal(Error(Message(Position(5), "a", ["z", "x", "p", "q"])))
+  strings.parse("1234abd", parser)
+  |> should.equal(
+    Error(Message(Position(5), Unexpected("a"), ["z", "x", "p", "q"])),
+  )
 }
