@@ -1,5 +1,5 @@
-import gleam/iterator
 import gleam/string
+import gleam/yielder
 import konbini.{type Message, type Parser, expect, succeed}
 import konbini/parsers.{drop}
 
@@ -8,11 +8,11 @@ pub fn parse(
   parser: Parser(_, value),
 ) -> Result(value, Message(_)) {
   let input = {
-    use state <- iterator.unfold(string)
+    use state <- yielder.unfold(string)
 
     case string.pop_grapheme(state) {
-      Error(Nil) -> iterator.Done
-      Ok(#(grapheme, state)) -> iterator.Next(grapheme, state)
+      Error(Nil) -> yielder.Done
+      Ok(#(grapheme, state)) -> yielder.Next(grapheme, state)
     }
   }
 

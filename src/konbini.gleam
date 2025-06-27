@@ -1,12 +1,12 @@
-import gleam/iterator.{type Iterator}
 import gleam/list
+import gleam/yielder.{type Yielder}
 
 pub opaque type Parser(i, v) {
   Parser(fn(State(i)) -> Consumed(i, v))
 }
 
 type State(i) {
-  State(Iterator(i), Position)
+  State(Yielder(i), Position)
 }
 
 pub type Position {
@@ -38,7 +38,7 @@ fn run(parser: Parser(i, v), state: State(i)) -> Consumed(i, v) {
   parse(state)
 }
 
-pub fn parse(input: Iterator(i), parser: Parser(i, v)) -> Result(v, Message(i)) {
+pub fn parse(input: Yielder(i), parser: Parser(i, v)) -> Result(v, Message(i)) {
   let state = State(input, Position(1))
 
   case run(parser, state) {
@@ -59,11 +59,11 @@ pub fn parse(input: Iterator(i), parser: Parser(i, v)) -> Result(v, Message(i)) 
 pub fn expect(check: fn(i) -> Bool) -> Parser(i, i) {
   use State(input, position) <- Parser
 
-  case iterator.step(input) {
-    iterator.Done ->
+  case yielder.step(input) {
+    yielder.Done ->
       Empty(fn() { Failure(Message(position, UnexpectedEnd, [])) })
 
-    iterator.Next(token, rest) -> {
+    yielder.Next(token, rest) -> {
       case check(token) {
         False ->
           Empty(fn() { Failure(Message(position, Unexpected(token), [])) })
@@ -153,9 +153,10 @@ pub fn choice(a: Parser(i, v), b: Parser(i, v)) -> Parser(i, v) {
   }
 }
 
-fn merge_messages(message1, message2) {
-  let Message(_position, _message, labels) = message2
-  Message(..message1, labels: list.append(message1.labels, labels))
+fn merge_messages(message1: Message(i), message2: Message(i)) {
+  let Message(position, message, labels1) = message1
+  let Message(_, _, labels2) = message2
+  Message(position, message:, labels: list.append(labels1, labels2))
 }
 
 fn merge_replies(reply1, reply2) {
